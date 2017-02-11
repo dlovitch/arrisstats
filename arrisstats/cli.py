@@ -1,3 +1,7 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import click
 import requests
 import bs4
 import json
@@ -5,22 +9,32 @@ import json
 hostname = '192.168.100.1'
 
 class Cli:
-    def __init__(self, hostname):
-        self.debug = False
-        self.verbose = 0
+    def __init__(self, hostname, verbose):
+        self.verbose = verbose
+        print(self.verbose)
         self.hostname = hostname
 
-    def process_table(self, table):
-        data = {}
+    def process_table(self, table, unique_key=True):
+        if unique_key:
+            data = {}
+            range_start = 1
+        else:
+            data = []
+            range_start = 0
         headers = [td.text for td in table[0].findAll("td")]
+        if self.verbose >= 2: print("process_table/headers: {}".format(headers))
         for tr in table[1:]:
             if tr.findAll("td"):
                 row = [td.text for td in tr.findAll("td")]
+                if self.verbose >= 2: print("process_table/row: {}".format(row))
                 processed_row = {}
-                for i in range(1, len(headers)):
+                for i in range(range_start, len(headers)):
                     processed_row[headers[i]] = row[i]
-                if self.debug: print(processed_row)
-                data[row[0]] = processed_row
+                if self.verbose >= 2: print("process_table/processed_row: {}".format(processed_row))
+                if unique_key:
+                    data[row[0]] = processed_row
+                else:
+                    data.append(processed_row)
         return data
 
     def process_kv_table(self, table):
@@ -56,7 +70,29 @@ class Cli:
                 # Interface Parameters
                 if table.findNext("tbody").findNext("tr").findNext("td").text.strip() == "Interface Parameters":
                     status["Interface Parameters"] = self.process_table(table.findNext("table").findNext("tbody").findAll("tr"))
-            print(json.dumps(status, sort_keys=True, indent=4))
+        return status
+
+    def get_events(self):
+        events = {}
+        r = requests.get("http://{}/cgi-bin/event_cgi".format(self.hostname))
+        if r.status_code == 200:
+            souped = bs4.BeautifulSoup(r.content, "lxml")
+            for table in souped.findAll("table"):
+                # DOCSIS(CM) Events
+                if table.findNext("tbody").findNext("tr").findNext("td").text.strip() == "DOCSIS(CM) Events":
+                    events = self.process_table(table.findNext("table").findNext("tbody").findAll("tr"), unique_key=False)
+        return events
+
+@click.command()
+@click.option("-v", "--verbose", count=True)
+@click.option("--events", is_flag=True)
+@click.option("--status", is_flag=True)
+def main(verbose, events, status):
+    cli = Cli(hostname, verbose)
+    if events:
+        print(json.dumps(cli.get_status(), sort_keys=True, indent=4))
+    if status:
+        print(json.dumps(cli.get_events(), sort_keys=True, indent=4))
+
 if __name__ == "__main__":
-    cli = Cli(hostname)
-    cli.get_status()
+    main()
