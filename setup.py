@@ -13,8 +13,8 @@ setup(
     name='arrisstats',
     version='1.0.0',
     description='Stats from Arris cable modems',
-    author='David Lovitch',
-    author_email='dlovitch@gmail.com',
+    author='David L',
+    author_email='1191170+dlovitch@users.noreply.github.com',
     url='https://github.com/dlovitch/arrisstats/',
     packages=find_packages(),
     install_requires=requires
